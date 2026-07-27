@@ -1,0 +1,4 @@
+# Dependências do servidor MCP (venv local; auditadas no CI por pip-audit, ADR-003).
+mcp[cli]==1.28.1
+psycopg[binary]==3.3.4
+fastembed==0.8.0

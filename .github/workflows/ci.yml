@@ -24,9 +24,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/ruff-action@v3   # lê ruff.toml; não importa Airflow, só analisa
+      - uses: astral-sh/ruff-action@v3   # lê ruff.toml; não importa Airflow/mcp, só analisa
         with:
-          args: check dags/
+          args: check dags/ mcp_server/
 
   auditoria-dependencias:
     name: Auditoria de dependências (pip-audit)
@@ -38,3 +38,4 @@ jobs:
           python-version: "3.12"
       - run: pip install pip-audit
       - run: pip-audit -r requirements.txt
+      - run: pip-audit -r mcp_server/requirements.txt

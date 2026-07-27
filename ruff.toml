@@ -3,3 +3,7 @@ line-length = 100
 
 [lint]
 select = ["E", "F", "W", "I"]  # erros, pyflakes, avisos, ordenação de imports
+
+[lint.per-file-ignores]
+# Dicionário de dados: descrições longas em texto corrido, não é código a reflowar.
+"mcp_server/dicionario.py" = ["E501"]

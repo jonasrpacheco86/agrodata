@@ -27,12 +27,12 @@ flowchart LR
 
 ## Status
 
-**Fase 2 — três fontes + os 3 indicadores.** Produção (IBGE/SIDRA), clima (Open-Meteo) e preços
-(IPEADATA/DERAL-PR) entram por DAGs do Airflow e se cruzam em três indicadores que contam a história
-**passado → impacto → decisão**: chuva no ciclo × rendimento, receita estimada por hectare, e
-sazonalidade do preço × calendário de colheita. CI no GitHub Actions (segredos, lint, dependências).
-O servidor MCP entra na Fase 3. Roadmap resumido no [`CLAUDE.md`](CLAUDE.md); decisões em
-[`docs/adr/`](docs/adr/).
+**Fase 3 — a IA como interface (servidor MCP).** As três fontes já viram o `mart` com indicadores
+(Fase 2). Agora um **servidor MCP** ([`mcp_server/`](mcp_server/README.md)) expõe o `mart` como
+**ferramentas tipadas**: qualquer assistente de IA (ex.: Claude Desktop) consulta produção, clima,
+preços e receita/ha em linguagem natural — a tese do "cérebro próprio". Segurança: conexão só-leitura
+`mcp_ro`, sem text-to-SQL (ADR-004); o `pgvector` faz RAG só no dicionário de dados, não no dado
+tabular (ADR-007). Roadmap resumido no [`CLAUDE.md`](CLAUDE.md); decisões em [`docs/adr/`](docs/adr/).
 
 ## Como rodar
 
@@ -78,6 +78,13 @@ Dispare também **`clima_openmeteo`** (5 municípios do noroeste do RS) e **`pre
 (soja/milho/trigo). Elas populam `mart.fato_clima_safra` e `mart.fato_preco_mensal`, e as views
 `vw_chuva_rendimento`, `vw_receita_hectare` e `vw_preco_sazonal` entregam os indicadores. Monte o
 dashboard por [`docs/dashboard-fase2.md`](docs/dashboard-fase2.md).
+
+## Fase 3: consultar por IA (servidor MCP)
+
+O [`mcp_server/`](mcp_server/README.md) expõe 5 ferramentas tipadas (`producao`, `chuva_no_ciclo`,
+`preco`, `receita_por_hectare`, `busca_metadados`) sobre o `mart`, como só-leitura (`mcp_ro`).
+Conecte no Claude Desktop e pergunte em linguagem natural — instruções e `claude_desktop_config.json`
+no [README do servidor](mcp_server/README.md).
 
 ## Segurança (resumo — ver [`docs/adr/`](docs/adr/))
 

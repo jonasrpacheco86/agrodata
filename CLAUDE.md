@@ -4,22 +4,27 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Estado atual
 
-**Fase 2 em implementação — três fontes + 3 indicadores + CI.** Fonte de verdade, ler antes
+**Fase 3 em implementação — servidor MCP (a IA como interface).** Fonte de verdade, ler antes
 de trabalhar: `Portfolio_AgroData_Plano.md` (arquitetura, stack, fases, critérios de "pronto",
 pilar de segurança — prevalece sobre este CLAUDE.md em conflito) e `IDEIAS.md`. **Atenção:** os
 dois `Portfolio_*.md` são documentos de estratégia **locais e privados** (no `.gitignore`, fora
 do repositório público) — se você clonou o repo público, eles não estarão aqui; use este
 CLAUDE.md e `docs/adr/` como referência.
 
-Fases 0–1 publicadas (`v0.1.0`, `v0.2.0`) em github.com/jonasrpacheco86/agrodata.
+Fases 0–2 publicadas (`v0.1.0`–`v0.3.0`) em github.com/jonasrpacheco86/agrodata.
 - **DAGs** (`dags/`, todas `schedule=None`, idempotentes, conn `agrodata_dw` = `airflow_rw`):
-  `ibge_sidra_producao` (produção), `clima_openmeteo` (5 munis noroeste RS), `precos_ipeadata`
-  (soja/milho/trigo, DERAL-PR). Transforms em `dags/sql/*.sql`.
-- **Modelo** em `db/init/` (03 = produção; 04 = clima+preços): `raw.*` → `mart.dim_*`,
-  `mart.fato_producao`/`fato_clima_safra`/`fato_preco_mensal` + views `vw_producao`,
-  `vw_chuva_rendimento`, `vw_receita_hectare`, `vw_preco_sazonal`.
+  `ibge_sidra_producao`, `clima_openmeteo`, `precos_ipeadata`. Transforms em `dags/sql/*.sql`.
+- **Modelo** em `db/init/` (03 = produção; 04 = clima+preços; 05 = views MCP + dicionário RAG):
+  `raw.*` → `mart.dim_*`, `mart.fato_*` + views `vw_producao`, `vw_chuva_rendimento`,
+  `vw_receita_hectare`, `vw_preco_sazonal`, `vw_clima_safra`, `vw_preco_mensal`, e
+  `mart.dicionario_dados` (`vector(384)`).
+- **Servidor MCP** (`mcp_server/`): SDK oficial `mcp` (FastMCP), 5 tools tipadas sobre views,
+  conexão `mcp_ro`, sem text-to-SQL (ADR-004); `busca_metadados` faz RAG com `fastembed`
+  (MiniLM multilíngue) sobre `dicionario_dados` (ADR-007). Roda em venv local via stdio (Claude
+  Desktop); `index_metadados.py` popula os embeddings como `airflow_rw`.
 - **Segurança**: papéis em `02-security.sh` (ADR-002); CI em `.github/workflows/ci.yml`
-  (gitleaks + ruff + pip-audit, ADR-003); `requirements.txt` é o manifesto pinado.
+  (gitleaks + ruff + pip-audit em `dags/` e `mcp_server/`, ADR-003); imagem derivada do Airflow
+  pina `requests 2.33.0`.
 - **Dashboards**: `docs/dashboard-fase{1,2}.md` (montados na UI, data source `metabase_ro`).
 
 **Convenções aprendidas:** APIs validadas na prática antes de codar (SIDRA/Open-Meteo OK; IPEADATA
@@ -27,7 +32,9 @@ não suporta `contains()`/`$select`, filtrar no cliente). Os scripts `db/init/*`
 novo → aplicar nova fase exige `docker compose down -v && up`, depois disparar as DAGs. As DAGs usam
 `requests`+`psycopg2` da **imagem derivada** `docker/airflow/Dockerfile` (base 2.10.3 + `requirements.txt`,
 que pina `requests 2.33.0` para o CVE que o pip-audit pegou). Preço é proxy PR, não RS (ADR-006).
-Fase 2 verificada end-to-end e publicada em `v0.3.0`; CI verde.
+DDL aditivo (ex.: `05-fase3.sql`) pode ser aplicado a volume existente com `psql -f` **sem `down -v`**
+(evita apagar o Metabase). Servidor MCP: log em **stderr** (stdout é o transporte). Fases 0–2
+publicadas até `v0.3.0`; falta fechar a Fase 3 (aplicar 05, indexar, testar as tools, `v0.4.0`).
 
 ## O que é o projeto
 
