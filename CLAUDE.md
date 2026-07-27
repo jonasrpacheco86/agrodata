@@ -24,9 +24,10 @@ Fases 0–1 publicadas (`v0.1.0`, `v0.2.0`) em github.com/jonasrpacheco86/agroda
 
 **Convenções aprendidas:** APIs validadas na prática antes de codar (SIDRA/Open-Meteo OK; IPEADATA
 não suporta `contains()`/`$select`, filtrar no cliente). Os scripts `db/init/*` só rodam em volume
-novo → aplicar nova fase exige `docker compose down -v && up`, depois disparar as DAGs. `requests` +
-`psycopg2` já vêm na imagem do Airflow. Preço é proxy PR, não RS (ADR-006). Falta fechar a Fase 2:
-rodar as 2 DAGs novas, validar as views, montar o dashboard, checar o CI e taggear `v0.3.0`.
+novo → aplicar nova fase exige `docker compose down -v && up`, depois disparar as DAGs. As DAGs usam
+`requests`+`psycopg2` da **imagem derivada** `docker/airflow/Dockerfile` (base 2.10.3 + `requirements.txt`,
+que pina `requests 2.33.0` para o CVE que o pip-audit pegou). Preço é proxy PR, não RS (ADR-006).
+Fase 2 verificada end-to-end e publicada em `v0.3.0`; CI verde.
 
 ## O que é o projeto
 

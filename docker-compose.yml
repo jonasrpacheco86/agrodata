@@ -29,7 +29,10 @@ services:
     restart: unless-stopped
 
   airflow:
-    image: apache/airflow:2.10.3           # tag fixada
+    build:                                 # base 2.10.3 + requests 2.33.0 (corrige CVE, ADR-003)
+      context: .
+      dockerfile: docker/airflow/Dockerfile
+    image: agrodata/airflow:2.10.3         # nome da imagem derivada (tag fixada)
     depends_on:
       postgres:
         condition: service_healthy

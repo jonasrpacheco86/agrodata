@@ -31,3 +31,8 @@ Um segredo plantado num commit de teste **faz o pipeline falhar** (é a prova do
 uma dependência com CVE ou um erro de lint. O custo é pequeno: ~1–2 min por push e a disciplina de
 manter o `requirements.txt` pinado. Como o gitleaks lê o histórico inteiro, um segredo já commitado no
 passado seria detectado — reforçando a regra do ADR-001 de que segredo nunca entra no versionamento.
+
+**O controle funcionou na 1ª execução:** o pip-audit apontou `requests 2.32.3` (da imagem base do
+Airflow) com PYSEC-2026-1872/2275. A correção foi reprodutível, não cosmética — uma imagem derivada
+(`docker/airflow/Dockerfile`) instala `requests 2.33.0`, de modo que o runtime e o manifesto auditado
+ficam iguais (nada de "audit verde com runtime vulnerável").
