@@ -4,20 +4,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Estado atual
 
-**Fase 0 (esqueleto) montada — ainda sem código de aplicação.** Fonte de verdade, ler antes
+**Fase 1 em implementação — primeiro fluxo de dados ponta a ponta.** Fonte de verdade, ler antes
 de trabalhar: `Portfolio_AgroData_Plano.md` (arquitetura, stack, fases, critérios de "pronto",
 pilar de segurança — prevalece sobre este CLAUDE.md em conflito) e `IDEIAS.md`. **Atenção:** os
 dois `Portfolio_*.md` são documentos de estratégia **locais e privados** (no `.gitignore`, fora
 do repositório público) — se você clonou o repo público, eles não estarão aqui; use este
 CLAUDE.md e `docs/adr/` como referência.
 
-Já existe: `docker-compose.yml` (Postgres+pgvector / Airflow / Metabase), `db/init/01-init.sql`,
-`README.md` com diagrama, `.gitignore` + `.env.example`, `docs/adr/ADR-001`, e as automações em
-`.claude/`. **Falta para fechar a Fase 0:** inicializar o repositório git (1º commit já com o
-`.gitignore`) e publicar no GitHub — não feito ainda; nenhum push foi executado.
+Fase 0 (`v0.1.0`) publicada em github.com/jonasrpacheco86/agrodata. Fase 1 (código atual):
+- **DAG** `dags/ibge_sidra_producao.py` — SIDRA (PAM 5457, RS, 4 culturas, ~10 anos) → `raw.pam_sidra`
+  → transform (`dags/sql/transform_fato_producao.sql`) → `mart`. Trigger manual, idempotente.
+  Conecta ao DW como `airflow_rw` via Connection `agrodata_dw` (env no compose).
+- **Modelo** em `db/init/03-mart-ddl.sql`: `raw.pam_sidra` (longo) → `mart.dim_municipio`,
+  `mart.dim_cultura`, `mart.fato_producao` (grão município×ano×cultura) + `mart.vw_producao`.
+- **Segurança** em `db/init/02-security.sh`: papéis `airflow_rw`/`metabase_ro`/`mcp_ro` (ADR-002).
+- **Dashboard**: `docs/dashboard-fase1.md` (montado na UI do Metabase, data source `metabase_ro`).
 
-Ainda não há: DAGs (Fase 1), schema `mart`, dashboard, servidor MCP, nem manifesto de
-dependências Python (entra quando a Fase 1 criar a primeira DAG).
+**Importante:** os scripts `db/init/*` só rodam em volume novo → aplicar a Fase 1 exige
+`docker compose down -v && up`. A DAG usa `requests` + `psycopg2` (já na imagem do Airflow); se
+faltar, criar `docker/airflow/Dockerfile` mínimo. Falta fechar a Fase 1: rodar a DAG de verdade,
+montar o dashboard e taggear `v0.2.0`. Ainda não há manifesto de dependências Python nem servidor MCP.
 
 ## O que é o projeto
 

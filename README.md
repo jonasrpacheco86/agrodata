@@ -25,16 +25,17 @@ flowchart LR
 
 ## Status
 
-**Fase 0 — esqueleto.** Este repositório sobe a stack; as DAGs, o `mart`, o dashboard e o
-servidor MCP entram nas fases seguintes. Roadmap e critérios de "pronto" resumidos no
-[`CLAUDE.md`](CLAUDE.md); decisões de arquitetura em [`docs/adr/`](docs/adr/).
+**Fase 1 — uma fonte de ponta a ponta.** Uma DAG do Airflow extrai a Produção Agrícola Municipal
+do IBGE/SIDRA (RS, soja/milho/trigo/arroz, ~10 anos) → `raw` → `mart` dimensional, e o Metabase
+mostra os indicadores. O dashboard, o cruzamento com clima/preços e o servidor MCP entram nas
+fases seguintes. Roadmap resumido no [`CLAUDE.md`](CLAUDE.md); decisões em [`docs/adr/`](docs/adr/).
 
 ## Como rodar
 
 Pré-requisitos: Docker + Docker Compose.
 
 ```bash
-cp .env.example .env        # preencha POSTGRES_PASSWORD (segredos ficam só aqui — nunca no git)
+cp .env.example .env        # preencha as senhas (POSTGRES + os 3 papéis) — segredos só aqui, nunca no git
 docker compose up -d        # sobe postgres + airflow + metabase
 ```
 
@@ -55,12 +56,27 @@ docker compose exec airflow cat /opt/airflow/standalone_admin_password.txt
 Encerrar: `docker compose down` (dados persistem no volume `pgdata`) ou
 `docker compose down -v` (apaga também os dados).
 
-## Segurança (resumo — ver [ADR-001](docs/adr/ADR-001-gestao-de-segredos-e-baseline-de-container.md))
+> **Vindo da `v0.1.0`?** Os papéis de menor privilégio e os schemas (Fase 1) são criados pelos
+> scripts em `db/init/`, que só rodam em **volume novo**. Rode `docker compose down -v && docker
+> compose up -d` uma vez para aplicá-los (ainda não há dado real a perder).
 
-Segredos vivem só em `.env` local (no `.gitignore`); o repositório versiona apenas
-`.env.example`. Imagens Docker com tag fixada (nunca `latest`). O Airflow roda com usuário não
-root; Postgres e Metabase de-escalonam internamente e usam `no-new-privileges`. Todas as fontes
-da V1 são **dados públicos abertos** — não há dado pessoal nem LGPD em escopo.
+## Fase 1: atualizar os dados (um clique)
+
+1. No Airflow (localhost:8080), despause a DAG **`ibge_sidra_producao`** e clique em *Trigger*.
+   Ela extrai o SIDRA para `raw.pam_sidra` e transforma no `mart` (idempotente — pode re-rodar).
+2. Confira: `SELECT count(*) FROM mart.fato_producao;` (≈ municípios × culturas × anos).
+3. Monte os gráficos seguindo [`docs/dashboard-fase1.md`](docs/dashboard-fase1.md) (data source com
+   o papel `metabase_ro`).
+
+## Segurança (resumo — ver [`docs/adr/`](docs/adr/))
+
+Segredos vivem só em `.env` local (no `.gitignore`); o repositório versiona apenas `.env.example`.
+Imagens Docker com tag fixada (nunca `latest`); Airflow non-root, `no-new-privileges` em todos
+([ADR-001](docs/adr/ADR-001-gestao-de-segredos-e-baseline-de-container.md)). No banco, **menor
+privilégio**: `airflow_rw` escreve `raw`+`mart`, `metabase_ro` lê só `mart`, `mcp_ro` lê só as
+views — nenhum serviço usa o superusuário no DW
+([ADR-002](docs/adr/ADR-002-menor-privilegio-no-banco.md)). Todas as fontes da V1 são **dados
+públicos abertos** — não há dado pessoal nem LGPD em escopo.
 
 ## Licença
 

@@ -10,6 +10,10 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-agrodata}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
       POSTGRES_DB: ${POSTGRES_DB:-agrodata}
+      # Senhas dos papéis de menor privilégio — usadas pelo db/init/02-security.sh (ADR-002):
+      AIRFLOW_DB_PASSWORD: ${AIRFLOW_DB_PASSWORD:?defina AIRFLOW_DB_PASSWORD no .env}
+      METABASE_DB_PASSWORD: ${METABASE_DB_PASSWORD:?defina METABASE_DB_PASSWORD no .env}
+      MCP_DB_PASSWORD: ${MCP_DB_PASSWORD:?defina MCP_DB_PASSWORD no .env}
     ports:
       - "5432:5432"
     volumes:
@@ -35,6 +39,10 @@ services:
       AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: >-
         postgresql+psycopg2://${POSTGRES_USER:-agrodata}:${POSTGRES_PASSWORD}@postgres:5432/airflow
+      # Connection do DW usada pela DAG — papel airflow_rw, menor privilégio (ADR-002).
+      # Use senha URL-safe no .env (sem @ : / ? #) para não quebrar a URI.
+      AIRFLOW_CONN_AGRODATA_DW: >-
+        postgresql://airflow_rw:${AIRFLOW_DB_PASSWORD}@postgres:5432/agrodata
     ports:
       - "8080:8080"
     volumes:
