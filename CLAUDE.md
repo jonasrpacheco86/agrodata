@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Estado atual
 
-**Fase 3 em implementação — servidor MCP (a IA como interface).** Fonte de verdade, ler antes
+**V1 completa (Fase 4, `v1.0.0`) — documentada e publicada. Fase 5 (deploy) em andamento.** Fonte de verdade, ler antes
 de trabalhar: `Portfolio_AgroData_Plano.md` (arquitetura, stack, fases, critérios de "pronto",
 pilar de segurança — prevalece sobre este CLAUDE.md em conflito) e `IDEIAS.md`. **Atenção:** os
 dois `Portfolio_*.md` são documentos de estratégia **locais e privados** (no `.gitignore`, fora

@@ -25,14 +25,23 @@ flowchart LR
     MCP --> IA["Assistente de IA\n(ex.: Claude Desktop)"]
 ```
 
-## Status
+## Status — V1 completa
 
-**Fase 3 — a IA como interface (servidor MCP).** As três fontes já viram o `mart` com indicadores
-(Fase 2). Agora um **servidor MCP** ([`mcp_server/`](mcp_server/README.md)) expõe o `mart` como
-**ferramentas tipadas**: qualquer assistente de IA (ex.: Claude Desktop) consulta produção, clima,
-preços e receita/ha em linguagem natural — a tese do "cérebro próprio". Segurança: conexão só-leitura
-`mcp_ro`, sem text-to-SQL (ADR-004); o `pgvector` faz RAG só no dicionário de dados, não no dado
-tabular (ADR-007). Roadmap resumido no [`CLAUDE.md`](CLAUDE.md); decisões em [`docs/adr/`](docs/adr/).
+Fluxo completo entregue e publicado (`v1.0.0`):
+
+| Fase | Entrega | Tag |
+|---|---|---|
+| 0 | Esqueleto (Compose: Postgres+pgvector / Airflow / Metabase) | `v0.1.0` |
+| 1 | Produção (IBGE/SIDRA) ponta a ponta → `mart` + dashboard | `v0.2.0` |
+| 2 | Clima (Open-Meteo) + preços (IPEADATA) + 3 indicadores + CI | `v0.3.0` |
+| 3 | Servidor MCP (5 ferramentas tipadas) + RAG nos metadados | `v0.4.0` |
+| 4 | Documentação, modelo de ameaças e publicação | `v1.0.0` |
+| 5 (opcional) | Deploy por IaC (Terraform + Ansible) na nuvem | `v1.1.0` |
+
+Verificado end-to-end: **497 municípios × 4 culturas × 11 anos = 21.868 fatos** de produção; a seca
+2021/22 aparece nos dados (rendimento da soja em Cruz Alta cai a 1.337 kg/ha); as 5 ferramentas MCP
+respondem com os dados corretos do `mart`. Roadmap no [`CLAUDE.md`](CLAUDE.md); decisões em
+[`docs/adr/`](docs/adr/).
 
 ## Como rodar
 
@@ -86,15 +95,44 @@ O [`mcp_server/`](mcp_server/README.md) expõe 5 ferramentas tipadas (`producao`
 Conecte no Claude Desktop e pergunte em linguagem natural — instruções e `claude_desktop_config.json`
 no [README do servidor](mcp_server/README.md).
 
-## Segurança (resumo — ver [`docs/adr/`](docs/adr/))
+## Demonstração
 
-Segredos vivem só em `.env` local (no `.gitignore`); o repositório versiona apenas `.env.example`.
-Imagens Docker com tag fixada (nunca `latest`); Airflow non-root, `no-new-privileges` em todos
-([ADR-001](docs/adr/ADR-001-gestao-de-segredos-e-baseline-de-container.md)). No banco, **menor
-privilégio**: `airflow_rw` escreve `raw`+`mart`, `metabase_ro` lê só `mart`, `mcp_ro` lê só as
-views — nenhum serviço usa o superusuário no DW
-([ADR-002](docs/adr/ADR-002-menor-privilegio-no-banco.md)). Todas as fontes da V1 são **dados
-públicos abertos** — não há dado pessoal nem LGPD em escopo.
+Pergunta do produtor à IA: *"Qual o rendimento da soja em Passo Fundo em 2022?"* — a IA chama a
+ferramenta e responde com o dado da plataforma:
+
+```jsonc
+// tool: producao(municipio="Passo Fundo", cultura="soja", ano=2022)
+[{ "ano": 2022, "municipio": "Passo Fundo", "cultura": "Soja (em grão)",
+   "area_colhida_ha": 41000, "quantidade_produzida_t": 86100, "rendimento_medio_kg_ha": 2100 }]
+
+// tool: busca_metadados("quanto choveu na safra e como ficou o rendimento")
+// → aponta a ferramenta certa (RAG só nos metadados, ADR-007):
+[{ "objeto": "vw_chuva_rendimento", "score": 0.513 },
+ { "objeto": "chuva_no_ciclo / vw_clima_safra", "score": 0.473 }]
+```
+
+Prints do dashboard (Metabase) e da interação em [`docs/screenshots/`](docs/screenshots/).
+
+## Segurança
+
+Pilar preventivo aplicado e documentado (mapeado ao NIST CSF), não só instalado:
+- **Segredos** só em `.env` local; `.gitignore` + gitleaks no CI ([ADR-001](docs/adr/ADR-001-gestao-de-segredos-e-baseline-de-container.md)).
+- **Menor privilégio no banco**: `airflow_rw`/`metabase_ro`/`mcp_ro`, nenhum superusuário no DW ([ADR-002](docs/adr/ADR-002-menor-privilegio-no-banco.md)).
+- **CI/cadeia de suprimentos**: gitleaks + ruff + pip-audit — pegou um CVE real no `requests` e foi corrigido em imagem derivada ([ADR-003](docs/adr/ADR-003-ci-supply-chain.md)).
+- **Superfície da IA**: MCP só-leitura, ferramentas tipadas, sem text-to-SQL ([ADR-004](docs/adr/ADR-004-superficie-mcp.md)).
+- **Modelo de ameaças** e o que fica **fora de escopo** (sem PII/LGPD — fontes são dados públicos) em [ADR-005](docs/adr/ADR-005-escopo-seguranca-ameacas.md).
+
+## Decisões (ADRs)
+
+| # | Decisão |
+|---|---|
+| [001](docs/adr/ADR-001-gestao-de-segredos-e-baseline-de-container.md) | Gestão de segredos e baseline de container |
+| [002](docs/adr/ADR-002-menor-privilegio-no-banco.md) | Separação de papéis e menor privilégio no banco |
+| [003](docs/adr/ADR-003-ci-supply-chain.md) | Cadeia de suprimentos e verificação automatizada no CI |
+| [004](docs/adr/ADR-004-superficie-mcp.md) | Superfície do MCP e por que não text-to-SQL livre |
+| [005](docs/adr/ADR-005-escopo-seguranca-ameacas.md) | Escopo de segurança e modelo de ameaças |
+| [006](docs/adr/ADR-006-precos-deral-pr-proxy.md) | Preços DERAL-PR como proxy regional |
+| [007](docs/adr/ADR-007-rag-onde-serve.md) | RAG onde serve, determinismo onde a precisão manda |
 
 ## Fontes de dados
 
