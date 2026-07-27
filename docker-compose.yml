@@ -1,0 +1,67 @@
+# AgroData — Fase 0 (esqueleto). Stack fixa: PostgreSQL 16 (pgvector) + Airflow + Metabase.
+# Sobe com: docker compose up -d   (preencha o .env antes — ver .env.example / ADR-001)
+# Um único Postgres hospeda 3 bancos: agrodata (DW), airflow (metadados), metabase (app).
+name: agrodata
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16          # tag fixada, nunca latest (ADR-001)
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-agrodata}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
+      POSTGRES_DB: ${POSTGRES_DB:-agrodata}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro   # cria os bancos e habilita pgvector no 1º start
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-agrodata} -d ${POSTGRES_DB:-agrodata}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  airflow:
+    image: apache/airflow:2.10.3           # tag fixada
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: >-
+        postgresql+psycopg2://${POSTGRES_USER:-agrodata}:${POSTGRES_PASSWORD}@postgres:5432/airflow
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./dags:/opt/airflow/dags:ro        # DAGs entram na Fase 1
+    user: "50000:0"                        # imagem roda como usuário airflow, não root (ADR-001)
+    security_opt:
+      - no-new-privileges:true
+    command: standalone                    # 1 container: webserver + scheduler + migrations no 1º start
+    restart: unless-stopped
+
+  metabase:
+    image: metabase/metabase:v0.51.10      # tag fixada
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      MB_DB_TYPE: postgres
+      MB_DB_HOST: postgres
+      MB_DB_PORT: 5432
+      MB_DB_DBNAME: metabase
+      MB_DB_USER: ${POSTGRES_USER:-agrodata}
+      MB_DB_PASS: ${POSTGRES_PASSWORD}
+    ports:
+      - "3000:3000"
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+
+volumes:
+  pgdata:

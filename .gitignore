@@ -1,0 +1,43 @@
+# ── Segredos — NUNCA versionar (ADR-001) ───────────────────────────────────────
+# Ficam apenas em .env LOCAL. Só .env.example vai para o repositório/GitHub.
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+*.pfx
+*id_rsa*
+credentials*
+secrets.*
+
+# ── Python ─────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# ── Airflow ────────────────────────────────────────────────────────────────────
+airflow.db
+airflow.cfg
+airflow-webserver.pid
+logs/
+standalone_admin_password.txt
+
+# ── Volumes locais (Postgres / Metabase) ───────────────────────────────────────
+pgdata/
+metabase-data/
+
+# ── IDE / SO ───────────────────────────────────────────────────────────────────
+.DS_Store
+.idea/
+.vscode/
+
+# ── Documentos de estratégia (privados — não publicar no repo público) ─────────
+Portfolio_AgroData_Plano.md
+Portfolio_AgroData_IDEIAS.md
+
+# ── Config local do Claude Code (máquina-específica) ───────────────────────────
+.claude/settings.local.json

@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/guardrail.sh\"",
+            "description": "Guardrail AgroData: bloqueia dependencias fora da stack fixa (anti-complexidade) e edicao/vazamento de segredos (ADR-001)."
+          }
+        ]
+      }
+    ]
+  }
+}

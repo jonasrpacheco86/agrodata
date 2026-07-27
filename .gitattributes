@@ -1,0 +1,2 @@
+# Normaliza fim de linha para LF (evita CRLF quebrando scripts como .claude/hooks/*.sh).
+* text=auto eol=lf
