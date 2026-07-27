@@ -1,5 +1,7 @@
 # AgroData — do dado aberto à decisão (com IA)
 
+[![CI](https://github.com/jonasrpacheco86/agrodata/actions/workflows/ci.yml/badge.svg)](https://github.com/jonasrpacheco86/agrodata/actions/workflows/ci.yml)
+
 Plataforma **open source** que leva dados públicos do agronegócio brasileiro (produção, clima e
 preços) da ingestão à decisão. Fontes abertas entram por **Apache Airflow**, são modeladas num
 **PostgreSQL** (`raw` → `mart`, esquema dimensional, com `pgvector`), viram indicadores num
@@ -14,7 +16,7 @@ flowchart LR
     subgraph Fontes["Fontes abertas (agro)"]
         A1[IBGE / SIDRA]
         A2[Clima — Open-Meteo]
-        A3[Preços — IPEADATA/CEPEA]
+        A3[Preços — IPEADATA/DERAL-PR]
     end
     A1 & A2 & A3 --> ETL["Ingestão\nApache Airflow\n(1 DAG por fonte)"]
     ETL --> DB[("PostgreSQL 16\nschemas raw + mart\n+ pgvector")]
@@ -25,10 +27,12 @@ flowchart LR
 
 ## Status
 
-**Fase 1 — uma fonte de ponta a ponta.** Uma DAG do Airflow extrai a Produção Agrícola Municipal
-do IBGE/SIDRA (RS, soja/milho/trigo/arroz, ~10 anos) → `raw` → `mart` dimensional, e o Metabase
-mostra os indicadores. O dashboard, o cruzamento com clima/preços e o servidor MCP entram nas
-fases seguintes. Roadmap resumido no [`CLAUDE.md`](CLAUDE.md); decisões em [`docs/adr/`](docs/adr/).
+**Fase 2 — três fontes + os 3 indicadores.** Produção (IBGE/SIDRA), clima (Open-Meteo) e preços
+(IPEADATA/DERAL-PR) entram por DAGs do Airflow e se cruzam em três indicadores que contam a história
+**passado → impacto → decisão**: chuva no ciclo × rendimento, receita estimada por hectare, e
+sazonalidade do preço × calendário de colheita. CI no GitHub Actions (segredos, lint, dependências).
+O servidor MCP entra na Fase 3. Roadmap resumido no [`CLAUDE.md`](CLAUDE.md); decisões em
+[`docs/adr/`](docs/adr/).
 
 ## Como rodar
 
@@ -68,6 +72,13 @@ Encerrar: `docker compose down` (dados persistem no volume `pgdata`) ou
 3. Monte os gráficos seguindo [`docs/dashboard-fase1.md`](docs/dashboard-fase1.md) (data source com
    o papel `metabase_ro`).
 
+## Fase 2: clima, preços e os 3 indicadores
+
+Dispare também **`clima_openmeteo`** (5 municípios do noroeste do RS) e **`precos_ipeadata`**
+(soja/milho/trigo). Elas populam `mart.fato_clima_safra` e `mart.fato_preco_mensal`, e as views
+`vw_chuva_rendimento`, `vw_receita_hectare` e `vw_preco_sazonal` entregam os indicadores. Monte o
+dashboard por [`docs/dashboard-fase2.md`](docs/dashboard-fase2.md).
+
 ## Segurança (resumo — ver [`docs/adr/`](docs/adr/))
 
 Segredos vivem só em `.env` local (no `.gitignore`); o repositório versiona apenas `.env.example`.
@@ -78,7 +89,14 @@ views — nenhum serviço usa o superusuário no DW
 ([ADR-002](docs/adr/ADR-002-menor-privilegio-no-banco.md)). Todas as fontes da V1 são **dados
 públicos abertos** — não há dado pessoal nem LGPD em escopo.
 
+## Fontes de dados
+
+- **Produção**: IBGE / SIDRA — Produção Agrícola Municipal (tabela 5457), API pública.
+- **Clima**: dados meteorológicos por [Open-Meteo](https://open-meteo.com/) (Open-Meteo Historical
+  Weather API), licenciados sob **CC BY 4.0** — citação obrigatória pela licença.
+- **Preços**: IPEADATA, séries DERAL-PR "preço recebido pelo agricultor" (proxy regional do Paraná;
+  ver [ADR-006](docs/adr/ADR-006-precos-deral-pr-proxy.md)).
+
 ## Licença
 
-[Apache License 2.0](LICENSE). A citação da fonte **Open-Meteo** é obrigatória (exigência da
-licença dos dados) e será incluída no README ao integrar essa fonte na Fase 2.
+Código sob [Apache License 2.0](LICENSE). Dados sob as licenças das respectivas fontes (ver acima).

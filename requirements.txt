@@ -1,0 +1,4 @@
+# Dependências das DAGs (além do que a imagem do Airflow já traz).
+# Versões alinhadas com apache/airflow:2.10.3; auditadas no CI por pip-audit (ADR-003).
+requests==2.32.3
+psycopg2-binary==2.9.10

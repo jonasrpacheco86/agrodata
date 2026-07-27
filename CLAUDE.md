@@ -4,26 +4,29 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Estado atual
 
-**Fase 1 em implementação — primeiro fluxo de dados ponta a ponta.** Fonte de verdade, ler antes
+**Fase 2 em implementação — três fontes + 3 indicadores + CI.** Fonte de verdade, ler antes
 de trabalhar: `Portfolio_AgroData_Plano.md` (arquitetura, stack, fases, critérios de "pronto",
 pilar de segurança — prevalece sobre este CLAUDE.md em conflito) e `IDEIAS.md`. **Atenção:** os
 dois `Portfolio_*.md` são documentos de estratégia **locais e privados** (no `.gitignore`, fora
 do repositório público) — se você clonou o repo público, eles não estarão aqui; use este
 CLAUDE.md e `docs/adr/` como referência.
 
-Fase 0 (`v0.1.0`) publicada em github.com/jonasrpacheco86/agrodata. Fase 1 (código atual):
-- **DAG** `dags/ibge_sidra_producao.py` — SIDRA (PAM 5457, RS, 4 culturas, ~10 anos) → `raw.pam_sidra`
-  → transform (`dags/sql/transform_fato_producao.sql`) → `mart`. Trigger manual, idempotente.
-  Conecta ao DW como `airflow_rw` via Connection `agrodata_dw` (env no compose).
-- **Modelo** em `db/init/03-mart-ddl.sql`: `raw.pam_sidra` (longo) → `mart.dim_municipio`,
-  `mart.dim_cultura`, `mart.fato_producao` (grão município×ano×cultura) + `mart.vw_producao`.
-- **Segurança** em `db/init/02-security.sh`: papéis `airflow_rw`/`metabase_ro`/`mcp_ro` (ADR-002).
-- **Dashboard**: `docs/dashboard-fase1.md` (montado na UI do Metabase, data source `metabase_ro`).
+Fases 0–1 publicadas (`v0.1.0`, `v0.2.0`) em github.com/jonasrpacheco86/agrodata.
+- **DAGs** (`dags/`, todas `schedule=None`, idempotentes, conn `agrodata_dw` = `airflow_rw`):
+  `ibge_sidra_producao` (produção), `clima_openmeteo` (5 munis noroeste RS), `precos_ipeadata`
+  (soja/milho/trigo, DERAL-PR). Transforms em `dags/sql/*.sql`.
+- **Modelo** em `db/init/` (03 = produção; 04 = clima+preços): `raw.*` → `mart.dim_*`,
+  `mart.fato_producao`/`fato_clima_safra`/`fato_preco_mensal` + views `vw_producao`,
+  `vw_chuva_rendimento`, `vw_receita_hectare`, `vw_preco_sazonal`.
+- **Segurança**: papéis em `02-security.sh` (ADR-002); CI em `.github/workflows/ci.yml`
+  (gitleaks + ruff + pip-audit, ADR-003); `requirements.txt` é o manifesto pinado.
+- **Dashboards**: `docs/dashboard-fase{1,2}.md` (montados na UI, data source `metabase_ro`).
 
-**Importante:** os scripts `db/init/*` só rodam em volume novo → aplicar a Fase 1 exige
-`docker compose down -v && up`. A DAG usa `requests` + `psycopg2` (já na imagem do Airflow); se
-faltar, criar `docker/airflow/Dockerfile` mínimo. Falta fechar a Fase 1: rodar a DAG de verdade,
-montar o dashboard e taggear `v0.2.0`. Ainda não há manifesto de dependências Python nem servidor MCP.
+**Convenções aprendidas:** APIs validadas na prática antes de codar (SIDRA/Open-Meteo OK; IPEADATA
+não suporta `contains()`/`$select`, filtrar no cliente). Os scripts `db/init/*` só rodam em volume
+novo → aplicar nova fase exige `docker compose down -v && up`, depois disparar as DAGs. `requests` +
+`psycopg2` já vêm na imagem do Airflow. Preço é proxy PR, não RS (ADR-006). Falta fechar a Fase 2:
+rodar as 2 DAGs novas, validar as views, montar o dashboard, checar o CI e taggear `v0.3.0`.
 
 ## O que é o projeto
 

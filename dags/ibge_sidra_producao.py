@@ -12,10 +12,9 @@ from pathlib import Path
 
 import psycopg2
 import requests
-from psycopg2.extras import execute_values
-
 from airflow.decorators import dag, task
 from airflow.hooks.base import BaseHook
+from psycopg2.extras import execute_values
 
 CONN_ID = "agrodata_dw"
 SQL_DIR = Path(__file__).parent / "sql"

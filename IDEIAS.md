@@ -11,6 +11,7 @@
 - Previsão/ML (safra, preço) — só depois do descritivo estar sólido
 - Streaming/tempo quase real — sem caso de uso na V1
 - Mapa geoespacial (PostGIS) nos dashboards
+- CEPEA/RS (preços RS-específicos via XLS) — avaliar futuramente como alternativa ao proxy DERAL-PR usado na Fase 2 (ver ADR-006)
 
 ## IA
 - Multi-agente / orquestração
@@ -18,6 +19,7 @@
 - Scoring real de recomendação (lição do LocaAgro: nunca exibir percentual não calculado)
 
 ## Plataforma e infra
+- Migrations idempotentes (alembic/sqitch) ou aplicar novo DDL com `psql -f` sem `down -v` — hoje cada fase recria o volume e apaga o Metabase/dashboards (dor recorrente nas fases 1–2)
 - Kubernetes (Compose + IaC bastam para este porte — escrever ADR "por que não")
 - Jenkins (GitHub Actions cobre — ADR "por que não")
 - Coroot/observabilidade avançada (3 containers, zero usuários — ADR "por que não")
