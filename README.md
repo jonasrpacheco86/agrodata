@@ -64,4 +64,5 @@ da V1 são **dados públicos abertos** — não há dado pessoal nem LGPD em esc
 
 ## Licença
 
-A definir na Fase 4 (licença open source + citação obrigatória da fonte Open-Meteo).
+[Apache License 2.0](LICENSE). A citação da fonte **Open-Meteo** é obrigatória (exigência da
+licença dos dados) e será incluída no README ao integrar essa fonte na Fase 2.
