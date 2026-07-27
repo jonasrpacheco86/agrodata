@@ -33,8 +33,12 @@ novo → aplicar nova fase exige `docker compose down -v && up`, depois disparar
 `requests`+`psycopg2` da **imagem derivada** `docker/airflow/Dockerfile` (base 2.10.3 + `requirements.txt`,
 que pina `requests 2.33.0` para o CVE que o pip-audit pegou). Preço é proxy PR, não RS (ADR-006).
 DDL aditivo (ex.: `05-fase3.sql`) pode ser aplicado a volume existente com `psql -f` **sem `down -v`**
-(evita apagar o Metabase). Servidor MCP: log em **stderr** (stdout é o transporte). Fases 0–2
-publicadas até `v0.3.0`; falta fechar a Fase 3 (aplicar 05, indexar, testar as tools, `v0.4.0`).
+(evita apagar o Metabase). Servidor MCP: log em **stderr** (stdout é o transporte); modo `stdio` (local)
+ou `http`+bearer (deploy). **Fase 5 (deploy):** topologia leve grátis (Oracle travou no cadastro,
+demais nuvens sem VM grátis grande o bastante) — **Neon** (Postgres+pgvector) + **Render** (MCP
+HTTP+bearer); só o MCP exposto, `mcp_ro`, sem Postgres/Airflow públicos (ADR-008). Runbook em
+`deploy/README.md`; `mcp_server/Dockerfile` embute o modelo. Falta o usuário aplicar (Neon+Render) e
+taggear `v1.1.0` quando o demo estiver no ar. V1 (`v1.0.0`) já publicada.
 
 ## O que é o projeto
 

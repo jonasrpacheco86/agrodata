@@ -133,6 +133,7 @@ Pilar preventivo aplicado e documentado (mapeado ao NIST CSF), não só instalad
 | [005](docs/adr/ADR-005-escopo-seguranca-ameacas.md) | Escopo de segurança e modelo de ameaças |
 | [006](docs/adr/ADR-006-precos-deral-pr-proxy.md) | Preços DERAL-PR como proxy regional |
 | [007](docs/adr/ADR-007-rag-onde-serve.md) | RAG onde serve, determinismo onde a precisão manda |
+| [008](docs/adr/ADR-008-exposicao-publica.md) | Exposição pública do demo (só MCP, autenticado) |
 
 ## Fontes de dados
 

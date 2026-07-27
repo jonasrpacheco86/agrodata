@@ -25,6 +25,11 @@ _embedder = None
 
 
 def _conn() -> psycopg.Connection:
+    # MCP_DB_URL (string de conexão, ex.: Neon com sslmode=require) tem prioridade;
+    # senão monta a partir dos params soltos (dev local).
+    url = os.environ.get("MCP_DB_URL")
+    if url:
+        return psycopg.connect(url)
     return psycopg.connect(
         host=os.environ.get("MCP_DB_HOST", "localhost"),
         port=os.environ.get("MCP_DB_PORT", "5432"),
@@ -123,5 +128,35 @@ def busca_metadados(pergunta: str) -> list[dict]:
     )
 
 
+def _run() -> None:
+    """stdio (padrão, Claude Desktop local) ou http+bearer (deploy público)."""
+    if os.environ.get("MCP_TRANSPORT") == "http":
+        import uvicorn
+        from starlette.middleware.base import BaseHTTPMiddleware
+        from starlette.responses import JSONResponse
+        from starlette.routing import Route
+
+        token = os.environ["MCP_AUTH_TOKEN"]  # obrigatório no modo público
+
+        async def health(_request):  # /healthz sem auth (health check do host)
+            return JSONResponse({"status": "ok"})
+
+        class BearerAuth(BaseHTTPMiddleware):
+            async def dispatch(self, request, call_next):
+                if request.url.path == "/healthz":
+                    return await call_next(request)
+                if request.headers.get("authorization") != f"Bearer {token}":
+                    log.warning("MCP http: 401 em %s", request.url.path)
+                    return JSONResponse({"error": "unauthorized"}, status_code=401)
+                return await call_next(request)
+
+        app = mcp.streamable_http_app()
+        app.router.routes.append(Route("/healthz", health))
+        app.add_middleware(BearerAuth)
+        uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", "8000")))
+    else:
+        mcp.run()  # stdio
+
+
 if __name__ == "__main__":
-    mcp.run()  # transporte stdio (padrão)
+    _run()

@@ -1,0 +1,18 @@
+# Render Blueprint — servidor MCP do AgroData (web service Docker, TLS incluso).
+# Deploy: no Render, New → Blueprint, aponte para este repositório.
+# Defina os secrets MCP_DB_URL e MCP_AUTH_TOKEN no painel (sync:false = não versionados).
+services:
+  - type: web
+    name: agrodata-mcp
+    runtime: docker
+    dockerfilePath: ./mcp_server/Dockerfile
+    dockerContext: .
+    plan: free            # web service grátis (hiberna após ~15 min ocioso; cold start no 1º acesso)
+    healthCheckPath: /healthz
+    envVars:
+      - key: MCP_TRANSPORT
+        value: http
+      - key: MCP_DB_URL      # string de conexão da Neon como mcp_ro (com sslmode=require)
+        sync: false
+      - key: MCP_AUTH_TOKEN  # bearer token forte
+        sync: false
