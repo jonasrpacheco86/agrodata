@@ -23,7 +23,8 @@ Fases 0–2 publicadas (`v0.1.0`–`v0.3.0`) em github.com/jonasrpacheco86/agrod
   (MiniLM multilíngue) sobre `dicionario_dados` (ADR-007). Roda em venv local via stdio (Claude
   Desktop); `index_metadados.py` popula os embeddings como `airflow_rw`.
 - **Segurança**: papéis em `02-security.sh` (ADR-002); CI em `.github/workflows/ci.yml`
-  (gitleaks + ruff + pip-audit em `dags/` e `mcp_server/`, ADR-003); imagem derivada do Airflow
+  (gitleaks + ruff + pip-audit em `dags/` e `mcp_server/`, ADR-003; mais `testes-borda` e
+  `imagem-mcp`, Fase 5); imagem derivada do Airflow
   pina `requests 2.33.0`.
 - **Dashboards**: `docs/dashboard-fase{1,2}.md` (montados na UI, data source `metabase_ro`).
 
@@ -37,8 +38,29 @@ DDL aditivo (ex.: `05-fase3.sql`) pode ser aplicado a volume existente com `psql
 ou `http`+bearer (deploy). **Fase 5 (deploy):** topologia leve grátis (Oracle travou no cadastro,
 demais nuvens sem VM grátis grande o bastante) — **Neon** (Postgres+pgvector) + **Render** (MCP
 HTTP+bearer); só o MCP exposto, `mcp_ro`, sem Postgres/Airflow públicos (ADR-008). Runbook em
-`deploy/README.md`; `mcp_server/Dockerfile` embute o modelo. Falta o usuário aplicar (Neon+Render) e
-taggear `v1.1.0` quando o demo estiver no ar. V1 (`v1.0.0`) já publicada.
+`deploy/README.md`; `mcp_server/Dockerfile` embute o modelo. **Endurecimento SecDevOps+FinOps
+(ADR-009/ADR-010, `docs/secdevops-finops.md`):** imagem non-root (uid 10001 — cuidado com a ordem:
+criar usuário e caches `FASTEMBED_CACHE_PATH`+`HF_HOME` **antes** de baixar o modelo, senão o build
+falha com "Permission denied" no xet); actions do CI pinadas por SHA + Dependabot + job `imagem-mcp`
+(build, prova de `uid != 0`, trivy); `autoDeploy: false` no Render; borda com `hmac.compare_digest`
+**em bytes** (com `str`, header não-ASCII vira 500 em vez de 401), rate limit em memória com os dois
+tetos em lados opostos da auth — 30/min por IP **antes** (enxurrada anônima custa pouco) e 120/min
+global **depois** (senão um scanner nega o serviço a quem tem token); requisição recusada não é
+contabilizada e o dicionário de IPs tem teto duro (2.000, despeja o mais antigo). `statement_timeout`
+de 15s por `SET LOCAL` na transação + default do papel (como `options=-c` de startup, um pooler
+descarta) e `CONNECTION LIMIT 20` no `mcp_ro` (5 estrangulava o padrão conexão-por-consulta);
+`MCP_DB_URL` usa o host **direto** da Neon, não o `-pooler`. `/healthz` responde estático e fica
+**fora** dos tetos de propósito: 429 ali não impediria a instância de acordar (a requisição já
+chegou) e arriscaria reprovar o health check do Render — o risco de a hibernação não acontecer é
+documentado, não mitigado no processo. Falta o usuário aplicar (Neon+Render) e taggear `v1.1.0`
+quando o demo estiver no ar. V1 (`v1.0.0`) já publicada.
+
+**Regras herdadas do endurecimento (valem para o próximo commit):** action nova no CI entra
+**pinada por SHA** com `# vX` ao lado, nunca `@v4` (o Dependabot atualiza). Dependência que o
+`server.py` importa direto entra pinada em `mcp_server/requirements.txt` mesmo vindo transitiva do
+`mcp` (foi o caso de `starlette`/`uvicorn`). A imagem do MCP builda com contexto na **raiz**:
+`docker build -f mcp_server/Dockerfile -t agrodata-mcp:ci .`; o job `imagem-mcp` só roda em PR e no
+`main` (embute o modelo, ~120 MB), então push de branch **não** prova non-root nem passa trivy.
 
 ## O que é o projeto
 
@@ -87,7 +109,7 @@ Entregar por fase, com **tag + GitHub Release** ao concluir (versionamento semâ
 | 2 — 3 fontes + 3 indicadores | DAGs de clima e preços; indicadores fechados em 3 (ver plano §Fase 2) | as 3 fontes atualizam pelo Airflow e os 3 indicadores contam a história | v0.3.0 |
 | 3 — Servidor MCP | 3–5 ferramentas tipadas (FastMCP) sobre o mart; conecta no Claude Desktop | 10 perguntas de teste respondidas com os dados corretos do mart | v0.4.0 |
 | 4 — Documentar e publicar | README completo, 3–5 ADRs, licença, post LinkedIn | um dev externo clona e roda; post no ar | **v1.0.0** |
-| 5 (opcional) — IaC | Terraform (VM) + Ansible (Docker + Compose) | `terraform apply` + `ansible-playbook` reconstroem tudo sem passo manual | v1.1.0 |
+| 5 (opcional) — Deploy público | MCP no ar (Neon + Render), endurecido e com custo controlado (ADR-008/009/010) | um terceiro consulta o `mart` pelo MCP autenticado; `deploy/README.md` reconstrói do zero; promoção é manual por decisão (`autoDeploy: false`) | v1.1.0 |
 
 Os três indicadores da Fase 2 são fixos e seguem o fio **passado → impacto → decisão**:
 chuva no ciclo × rendimento; receita estimada por hectare (cruza as 3 fontes — gráfico-vitrine);
@@ -127,7 +149,7 @@ e nenhum serviço conecta ao banco como superusuário.
   `.env.example` é liberado. Para liberar um caso legítimo, o humano ajusta o hook.
 - **Skill `/novo-adr`** (user-only): cria um ADR curto e numerado em `docs/adr/` (risco → decisão
   → o que ficou de fora → função NIST CSF). `ADR-001`–`ADR-005` reservados ao pilar de segurança;
-  novos de arquitetura a partir de `ADR-006`.
+  arquitetura de `ADR-006` em diante (`006`–`010` já usados — o próximo é `ADR-011`).
 
 ## Segredos (ADR-001)
 

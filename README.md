@@ -36,7 +36,7 @@ Fluxo completo entregue e publicado (`v1.0.0`):
 | 2 | Clima (Open-Meteo) + preços (IPEADATA) + 3 indicadores + CI | `v0.3.0` |
 | 3 | Servidor MCP (5 ferramentas tipadas) + RAG nos metadados | `v0.4.0` |
 | 4 | Documentação, modelo de ameaças e publicação | `v1.0.0` |
-| 5 (opcional) | Deploy por IaC (Terraform + Ansible) na nuvem | `v1.1.0` |
+| 5 (opcional) | Deploy público do MCP (Neon + Render), endurecido (SecDevOps + FinOps) | `v1.1.0` |
 
 Verificado end-to-end: **497 municípios × 4 culturas × 11 anos = 21.868 fatos** de produção; a seca
 2021/22 aparece nos dados (rendimento da soja em Cruz Alta cai a 1.337 kg/ha); as 5 ferramentas MCP
@@ -118,9 +118,10 @@ Prints do dashboard (Metabase) e da interação em [`docs/screenshots/`](docs/sc
 Pilar preventivo aplicado e documentado (mapeado ao NIST CSF), não só instalado:
 - **Segredos** só em `.env` local; `.gitignore` + gitleaks no CI ([ADR-001](docs/adr/ADR-001-gestao-de-segredos-e-baseline-de-container.md)).
 - **Menor privilégio no banco**: `airflow_rw`/`metabase_ro`/`mcp_ro`, nenhum superusuário no DW ([ADR-002](docs/adr/ADR-002-menor-privilegio-no-banco.md)).
-- **CI/cadeia de suprimentos**: gitleaks + ruff + pip-audit — pegou um CVE real no `requests` e foi corrigido em imagem derivada ([ADR-003](docs/adr/ADR-003-ci-supply-chain.md)).
+- **CI/cadeia de suprimentos**: gitleaks + ruff + pip-audit — pegou um CVE real no `requests` e foi corrigido em imagem derivada ([ADR-003](docs/adr/ADR-003-ci-supply-chain.md)). Somam-se os testes da borda pública (`mcp_server/test_borda.py`: tetos de taxa e comparação do bearer) e o build/scan da imagem.
 - **Superfície da IA**: MCP só-leitura, ferramentas tipadas, sem text-to-SQL ([ADR-004](docs/adr/ADR-004-superficie-mcp.md)).
 - **Modelo de ameaças** e o que fica **fora de escopo** (sem PII/LGPD — fontes são dados públicos) em [ADR-005](docs/adr/ADR-005-escopo-seguranca-ameacas.md).
+- **Deploy**: promoção manual, container non-root provado no CI, actions pinadas por SHA, limite de taxa e `statement_timeout` na borda ([ADR-009](docs/adr/ADR-009-secdevops-do-deploy.md)) — e **FinOps** como restrição de arquitetura, não como economia ([ADR-010](docs/adr/ADR-010-finops-free-tier.md)). Os dois pilares detalhados, com o que ficou deliberadamente de fora, em [`docs/secdevops-finops.md`](docs/secdevops-finops.md).
 
 ## Decisões (ADRs)
 
@@ -134,6 +135,8 @@ Pilar preventivo aplicado e documentado (mapeado ao NIST CSF), não só instalad
 | [006](docs/adr/ADR-006-precos-deral-pr-proxy.md) | Preços DERAL-PR como proxy regional |
 | [007](docs/adr/ADR-007-rag-onde-serve.md) | RAG onde serve, determinismo onde a precisão manda |
 | [008](docs/adr/ADR-008-exposicao-publica.md) | Exposição pública do demo (só MCP, autenticado) |
+| [009](docs/adr/ADR-009-secdevops-do-deploy.md) | SecDevOps do deploy: cadeia de entrega e baseline do runtime publicado |
+| [010](docs/adr/ADR-010-finops-free-tier.md) | FinOps: o free tier como restrição de arquitetura |
 
 ## Fontes de dados
 

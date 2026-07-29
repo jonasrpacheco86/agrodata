@@ -1,0 +1,16 @@
+# Contrapeso do pin por SHA (ADR-009): pin congela a versão, e versão congelada envelhece com CVE.
+# O Dependabot abre PR quando a action ou a dependência sobe — a atualização vira decisão revisada,
+# não um `@v4` que muda sozinho debaixo do pipeline.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly       # mensal: 3 workflows, ninguém precisa de ruído semanal
+    open-pull-requests-limit: 3
+
+  - package-ecosystem: pip
+    directory: /mcp_server     # o que vai ao ar; o pip-audit já falha o CI em CVE conhecido
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3

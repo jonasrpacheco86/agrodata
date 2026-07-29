@@ -2,3 +2,8 @@
 mcp[cli]==1.28.1
 psycopg[binary]==3.3.4
 fastembed==0.8.0
+# Servidor HTTP do modo público: vêm transitivamente do mcp, mas são declaradas aqui porque o
+# `server.py` as importa direto e porque dependência transitiva não pinada é atualização silenciosa
+# no artefato que vai ao ar (ADR-009).
+starlette==1.3.1
+uvicorn==0.51.0

@@ -6,9 +6,11 @@ Cada tool roda uma consulta parametrizada fixa sobre uma VIEW, conectando como `
 """
 from __future__ import annotations
 
+import hmac
 import logging
 import os
 import sys
+import time
 from decimal import Decimal
 
 import psycopg
@@ -19,6 +21,8 @@ log = logging.getLogger("agrodata-mcp")
 
 LIMITE = 500  # teto de linhas por retorno (ADR-004)
 MODELO = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+# Consulta que trava é compute queimado na cota do banco serverless (ADR-010).
+TIMEOUT_MS = 15_000
 
 mcp = FastMCP("agrodata")
 _embedder = None
@@ -41,6 +45,12 @@ def _conn() -> psycopg.Connection:
 
 def _query(sql: str, params: list) -> list[dict]:
     with _conn() as conn, conn.cursor() as cur:
+        # `SET LOCAL` dentro da transação, e não `options=-c ...` no pacote de startup: um pooler
+        # em modo transaction (PgBouncer, que é o que a Neon oferece no host `-pooler`) recusa
+        # parâmetro de startup arbitrário. Assim o teto vale nos dois hosts, direto ou pooled.
+        # O `mcp_ro` também carrega o mesmo teto no servidor (deploy/neon_roles.sql) — este SET é
+        # o que garante o limite quando o papel do ambiente local não tem o default aplicado.
+        cur.execute(f"SET LOCAL statement_timeout = {TIMEOUT_MS}")  # int nosso, não vem de entrada
         cur.execute(sql, params)
         cols = [d.name for d in cur.description]
         return [
@@ -128,6 +138,71 @@ def busca_metadados(pergunta: str) -> list[dict]:
     )
 
 
+# --- Rate limit da borda pública (ADR-009/ADR-010) --------------------------------------------
+# Janela deslizante em memória, sem dependência nova. São dois tetos, com propósitos distintos e
+# aplicados em momentos distintos:
+#
+# - **por IP, antes da auth**: contém a enxurrada barata. A chave vem do `X-Forwarded-For`, que é
+#   falsificável, então isto é dissuasivo — não uma garantia.
+# - **global, depois da auth**: é o teto que protege a cota de compute do banco. Fica depois de
+#   propósito: se valesse também para tráfego anônimo, qualquer scanner esgotaria o orçamento e
+#   negaria o serviço justamente a quem tem o token.
+#
+# Requisição recusada **não** é contabilizada: contar o próprio 429 realimenta a janela, e uma
+# enxurrada sustentada manteria o teto estourado para sempre (negação de serviço permanente).
+#
+# Concorrência: as funções abaixo não têm `await`, então rodam atômicas no laço de eventos.
+JANELA_S = 60.0
+TETO_IP = 30
+TETO_AUTENTICADO = 120
+MAX_CHAVES = 2_000  # teto duro do dicionário (ver `_podar`)
+_hits_ip: dict[str, list[float]] = {}
+_hits_auth: list[float] = []
+
+
+def _sob_teto(janela: list[float], teto: int, agora: float) -> bool:
+    """Descarta o que saiu da janela e registra o hit — mas só se couber no teto."""
+    janela[:] = [t for t in janela if agora - t < JANELA_S]
+    if len(janela) >= teto:
+        return False
+    janela.append(agora)
+    return True
+
+
+def _podar(agora: float) -> None:
+    """Mantém `_hits_ip` limitado. Sem isto, uma enxurrada variando o `X-Forwarded-For` cria uma
+    chave por requisição — todas dentro da janela, nenhuma expirada — e a instância free (512 MB)
+    morre por OOM antes de qualquer teto disparar."""
+    if len(_hits_ip) < MAX_CHAVES:
+        return
+    for chave in [k for k, v in _hits_ip.items() if agora - v[-1] >= JANELA_S]:
+        del _hits_ip[chave]
+    excedente = len(_hits_ip) - MAX_CHAVES + 1  # +1: abre espaço para a chave que entra a seguir
+    if excedente > 0:  # nada expirou: despeja quem bateu há mais tempo, para o teto ser duro
+        for chave in sorted(_hits_ip, key=lambda k: _hits_ip[k][-1])[:excedente]:
+            del _hits_ip[chave]
+
+
+def _aceita_ip(ip: str) -> bool:
+    agora = time.monotonic()
+    _podar(agora)
+    return _sob_teto(_hits_ip.setdefault(ip, []), TETO_IP, agora)
+
+
+def _aceita_autenticado() -> bool:
+    return _sob_teto(_hits_auth, TETO_AUTENTICADO, time.monotonic())
+
+
+def _bearer_confere(recebido: str, esperado: bytes) -> bool:
+    """Compara o header `Authorization` em tempo constante — e em **bytes**.
+
+    `hmac.compare_digest` sobre `str` levanta `TypeError` diante de qualquer caractere não-ASCII, e
+    o header vem do cliente: em `str`, um `Authorization: Bearer \xff` viraria 500 com traceback,
+    acionável sem token nenhum. Starlette decodifica headers em latin-1, então é por latin-1 que
+    se volta aos bytes originais."""
+    return hmac.compare_digest(recebido.encode("latin-1", "replace"), esperado)
+
+
 def _run() -> None:
     """stdio (padrão, Claude Desktop local) ou http+bearer (deploy público)."""
     if os.environ.get("MCP_TRANSPORT") == "http":
@@ -137,22 +212,44 @@ def _run() -> None:
         from starlette.routing import Route
 
         token = os.environ["MCP_AUTH_TOKEN"]  # obrigatório no modo público
+        if not token.isascii():  # senão o header nunca bate e o serviço responde 401 para sempre
+            log.warning("MCP_AUTH_TOKEN tem caractere não-ASCII; gere com `openssl rand -hex 32`")
+        esperado = f"Bearer {token}".encode()  # bytes: ver `_bearer_confere`
 
         async def health(_request):  # /healthz sem auth (health check do host)
+            # Responde estático de propósito: um SELECT aqui acordaria o banco serverless a cada
+            # ping do host e queimaria a cota sem ninguém usar o demo (ADR-010).
             return JSONResponse({"status": "ok"})
 
-        class BearerAuth(BaseHTTPMiddleware):
+        def _limitado(ip, path, motivo):
+            log.warning("MCP http: 429 (%s) ip=%s path=%s", motivo, ip, path)
+            return JSONResponse({"error": "rate limited"}, status_code=429,
+                                headers={"Retry-After": str(int(JANELA_S))})
+
+        class BordaPublica(BaseHTTPMiddleware):
+            """Teto por IP antes da autenticação (enxurrada anônima custa pouco) e teto global
+            depois dela (a cota do banco só é consumida por quem passou no bearer)."""
+
             async def dispatch(self, request, call_next):
+                # /healthz fica fora dos dois tetos de propósito: o 429 não impediria a instância
+                # de acordar (a requisição já chegou ao processo), e estrangular a rota reprovaria
+                # o health check do próprio Render — derrubaria o demo para poupar um JSON.
                 if request.url.path == "/healthz":
                     return await call_next(request)
-                if request.headers.get("authorization") != f"Bearer {token}":
-                    log.warning("MCP http: 401 em %s", request.url.path)
+                ip = (request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+                      or (request.client.host if request.client else "desconhecido"))
+                if not _aceita_ip(ip):
+                    return _limitado(ip, request.url.path, "ip")
+                if not _bearer_confere(request.headers.get("authorization", ""), esperado):
+                    log.warning("MCP http: 401 ip=%s path=%s", ip, request.url.path)
                     return JSONResponse({"error": "unauthorized"}, status_code=401)
+                if not _aceita_autenticado():
+                    return _limitado(ip, request.url.path, "global")
                 return await call_next(request)
 
         app = mcp.streamable_http_app()
         app.router.routes.append(Route("/healthz", health))
-        app.add_middleware(BearerAuth)
+        app.add_middleware(BordaPublica)
         uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", "8000")))
     else:
         mcp.run()  # stdio

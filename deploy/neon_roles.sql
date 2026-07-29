@@ -18,5 +18,17 @@ CREATE SCHEMA IF NOT EXISTS mart AUTHORIZATION airflow_rw;
 -- mcp_ro enxerga o schema mart; o SELECT é concedido view a view pelos DDL 03/04/05.
 GRANT USAGE ON SCHEMA mart TO mcp_ro;
 
+-- Teto de conexões do papel público: em banco serverless, conexão aberta é compute cobrado.
+-- Vale como guarda de custo (ADR-010) e como limite de dano se o bearer vazar (ADR-009).
+-- 20, e não 5: o `_query()` abre uma conexão por consulta e o FastMCP roda as tools em threadpool,
+-- então 5 estrangularia o uso legítimo (`FATAL: too many connections for role`) muito antes de
+-- conter abuso — quem contém abuso é o rate limit da borda. É teto de dano, não de vazão.
+ALTER ROLE mcp_ro CONNECTION LIMIT 20;
+
+-- Teto de tempo por consulta, no servidor: vale mesmo se o cliente esquecer de aplicá-lo, e
+-- sobrevive ao pooler (que descarta parâmetro de startup). O servidor MCP ainda manda um
+-- `SET LOCAL statement_timeout` por transação — os dois juntos, nenhum dependendo do outro.
+ALTER ROLE mcp_ro SET statement_timeout = '15s';
+
 -- Neon: o papel dono precisa poder assumir airflow_rw para os DDL (que usam SET ROLE).
 GRANT airflow_rw TO CURRENT_USER;
