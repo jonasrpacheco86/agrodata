@@ -1,4 +1,4 @@
-# AgroData — do dado aberto à decisão (com IA)
+# AgroData: do dado aberto à decisão (com IA)
 
 [![CI](https://github.com/jonasrpacheco86/agrodata/actions/workflows/ci.yml/badge.svg)](https://github.com/jonasrpacheco86/agrodata/actions/workflows/ci.yml)
 
