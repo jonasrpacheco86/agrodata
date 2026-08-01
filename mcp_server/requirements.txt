@@ -6,4 +6,4 @@ fastembed==0.8.0
 # `server.py` as importa direto e porque dependência transitiva não pinada é atualização silenciosa
 # no artefato que vai ao ar (ADR-009).
 starlette==1.3.1
-uvicorn==0.51.0
+uvicorn==0.52.0
